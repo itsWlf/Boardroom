@@ -1,4 +1,3 @@
-import { expandGroups } from './arrange';
 import React from 'react';
 import {
   selectionBounds,
@@ -96,7 +95,7 @@ export function CanvasSurface() {
     toWorld,
     tool,
     lastPointer,
-    setContextMenu,
+    canvasContextMenu,
     renderAll,
     setEditing,
     display,
@@ -362,15 +361,7 @@ export function CanvasSurface() {
           lastPointer.current = toWorld(e.clientX, e.clientY);
           pointerMove(e);
         }}
-        onContextMenu={e => {
-          e.preventDefault();
-          cancelGesture();
-          const world = toWorld(e.clientX, e.clientY),
-            id = (e.target as Element).closest<SVGGElement>('[data-item]')?.dataset.item;
-          if (id && !selected.includes(id)) setSelected(expandGroups(board, [id]));
-          if (!id && selected.length) setSelected([]);
-          setContextMenu({ x: e.clientX, y: e.clientY, world, onItem: !!id });
-        }}
+        onContextMenu={canvasContextMenu}
         onPointerUp={pointerUp}
         onPointerCancel={pointerCancel}
         onLostPointerCapture={() => {

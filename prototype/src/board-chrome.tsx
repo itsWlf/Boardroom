@@ -170,11 +170,11 @@ export function BoardChrome() {
             ))}
             <dt>Pan temporarily</dt>
             <dd>
-              <kbd>Space + drag</kbd>
+              <kbd>Right-button drag</kbd> <kbd>Space + drag</kbd>
             </dd>
             <dt>Zoom</dt>
             <dd>
-              <kbd>Ctrl + scroll</kbd> <kbd>Ctrl + / Ctrl −</kbd>
+              <kbd>Scroll (mouse)</kbd> <kbd>Ctrl + scroll</kbd> <kbd>Ctrl + / Ctrl −</kbd>
             </dd>
             <dt>Zoom to fit / to selection / to 100%</dt>
             <dd>

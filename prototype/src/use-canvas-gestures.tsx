@@ -75,7 +75,10 @@ export function useCanvasGestures(core: BoardCore) {
     pen = useRef<PenState>(newPenState()),
     owner = useRef<{ id: number; touch: boolean } | null>(null),
     // A pending touch long press (track C): the finger, where it went down and its timer.
-    longPress = useRef<{ id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+    longPress = useRef<{ id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null),
+    // The right mouse button drags the board; released without moving, it opens the context menu instead.
+    // `released` is when it went up (0 while held), so the browser's own contextmenu event can be swallowed.
+    rightPress = useRef<{ itemId?: string; released: number } | null>(null);
   const {
     setDropLine,
     library,
@@ -146,12 +149,39 @@ export function useCanvasGestures(core: BoardCore) {
     }, LONG_PRESS_MS);
     longPress.current = { id, x, y, timer };
   }
-  const hit = (e: React.PointerEvent) => (e.target as Element).closest<SVGGElement>('[data-item]')?.dataset.item;
+  const hit = (e: React.SyntheticEvent) => (e.target as Element).closest<SVGGElement>('[data-item]')?.dataset.item;
+  /** Open the context menu at a screen point: on an object it selects that object, on empty canvas it deselects. */
+  function openContextMenu(x: number, y: number, itemId: string | undefined) {
+    const current = boardRef.current,
+      id = itemId && current.items.some(i => i.id === itemId) ? itemId : undefined;
+    if (id && !selected.includes(id)) setSelected(expandGroups(current, [id]));
+    if (!id && selected.length) setSelected([]);
+    setContextMenu({ x, y, world: toWorld(x, y), onItem: !!id });
+  }
+  /** The right button went up (`at`) or its drag was cancelled (0): drop the drag cursor. */
+  function endRightPress(at: number) {
+    if (!rightPress.current) return;
+    rightPress.current = at ? { ...rightPress.current, released: at } : null;
+    if (svg.current) svg.current.style.cursor = '';
+  }
+  /**
+   * The browser's contextmenu event. A right-button press is handled by the pan gesture, which opens the menu
+   * itself on release (Windows sends this event after the button goes up, macOS and Linux when it goes down),
+   * so here it is only swallowed. Other sources, such as the keyboard's menu key, open the menu directly.
+   */
+  function canvasContextMenu(e: React.MouseEvent<SVGSVGElement>) {
+    e.preventDefault();
+    const r = rightPress.current;
+    if (r && (r.released ? performance.now() - r.released < 500 : gesture.current?.mode === 'pan')) return;
+    cancelGesture();
+    openContextMenu(e.clientX, e.clientY, hit(e));
+  }
   function cancelGesture() {
     const g = gesture.current;
     gesture.current = null;
     owner.current = null;
     clearLongPress();
+    endRightPress(0);
     if (g?.mode === 'pan') setCamera(g.camera);
     if (g && 'originalIds' in g && g.originalIds) setSelected(g.originalIds);
     setDraft(null);
@@ -282,13 +312,15 @@ export function useCanvasGestures(core: BoardCore) {
   }
   function startGesture(e: React.PointerEvent<SVGSVGElement>, fingerPans: boolean) {
     if (touchDown(e)) return;
+    // The right mouse button drags the board, like the middle button (a pen's barrel button does not).
+    const rightDrag = e.button === 2 && e.pointerType === 'mouse';
     if (
       (e.target as Element).closest('textarea,input,select,video,iframe,.mindmap-canvas-editor') ||
-      (e.button !== 0 && e.button !== 1) ||
+      (e.button !== 0 && e.button !== 1 && !rightDrag) ||
       gesture.current
     )
       return;
-    if (previewStart && !(e.button === 1 || space.current)) return;
+    if (previewStart && !(e.button === 1 || rightDrag || space.current)) return;
     if (editing) {
       (document.activeElement as HTMLElement)?.blur();
       setEditing(null);
@@ -330,7 +362,8 @@ export function useCanvasGestures(core: BoardCore) {
       return;
     }
     e.currentTarget.setPointerCapture(e.pointerId);
-    if (fingerPans) {
+    if (rightDrag) rightPress.current = { itemId: id, released: 0 };
+    if (fingerPans || rightDrag) {
       gesture.current = { ...base, mode: 'pan' };
       return;
     }
@@ -531,9 +564,11 @@ export function useCanvasGestures(core: BoardCore) {
       g.peel.live.detached = true;
       setSelected(g.ids);
     }
-    if (g.mode === 'pan')
+    if (g.mode === 'pan') {
+      // A right-button drag shows the closed hand once it moves; a plain right-click keeps the tool's cursor.
+      if (g.moved && rightPress.current && !rightPress.current.released) e.currentTarget.style.cursor = 'grabbing';
       setCamera({ ...g.camera, x: g.camera.x + e.clientX - g.screen.x, y: g.camera.y + e.clientY - g.screen.y });
-    else if (g.mode === 'endpoint' && g.moved)
+    } else if (g.mode === 'endpoint' && g.moved)
       setDraft(moveConnectorEndpoint(g.board, g.ids[0], g.endpoint!, p, 12 / g.camera.z, !e.altKey));
     else if (g.mode === 'bend' && g.moved) setDraft(dragBend(g.board, g.ids[0], g.bend!, p));
     if (g.mode === 'create' && g.item?.type === 'arrow') {
@@ -637,6 +672,15 @@ export function useCanvasGestures(core: BoardCore) {
     setPeeling(null);
     const final = toWorld(e.clientX, e.clientY),
       moved = g.moved || Math.hypot(e.clientX - g.screen.x, e.clientY - g.screen.y) > 3;
+    const right = g.mode === 'pan' && rightPress.current && !rightPress.current.released ? rightPress.current : null;
+    if (right) {
+      endRightPress(now);
+      // A right-click that did not drag: undo the few pixels of drift and open the menu where it was pressed.
+      if (!moved) {
+        setCamera(g.camera);
+        openContextMenu(e.clientX, e.clientY, right.itemId);
+      }
+    }
     if (g.mode === 'lasso') {
       setLasso(null);
       const ids = lassoSelect(g.board.items, g.path ?? []);
@@ -790,5 +834,5 @@ export function useCanvasGestures(core: BoardCore) {
     if (touches.current.size < 2) pinch.current = null;
     cancelGesture();
   }
-  return { cancelGesture, pointerDown, pointerMove, pointerUp, pointerCancel };
+  return { cancelGesture, canvasContextMenu, pointerDown, pointerMove, pointerUp, pointerCancel };
 }

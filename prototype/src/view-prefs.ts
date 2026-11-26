@@ -3,7 +3,10 @@ export type ViewPrefs = {
   grid: boolean;
   dimensions: boolean;
   spellcheck: boolean;
-  /** Item 104. 'trackpad': wheel pans, Ctrl+wheel or pinch zooms. 'mouse': wheel zooms, Shift+wheel pans. */
+  /**
+   * Item 104. 'trackpad': wheel pans, Ctrl+wheel or pinch zooms. 'mouse': wheel zooms, Shift+wheel pans.
+   * 'auto' (the default) picks per wheel event, so a mouse wheel zooms without a setting (operator, 2026-11-26).
+   */
   navigation: 'trackpad' | 'mouse' | 'auto';
   singleKeys: boolean;
   reduceMotion: boolean;
@@ -25,7 +28,7 @@ export const defaultViewPrefs: ViewPrefs = {
   grid: true,
   dimensions: false,
   spellcheck: true,
-  navigation: 'trackpad',
+  navigation: 'auto',
   singleKeys: true,
   reduceMotion: false,
   comments: true,
@@ -45,7 +48,8 @@ export function parseViewPrefs(raw: string | null | undefined, systemReducedMoti
       grid: typeof v?.grid === 'boolean' ? v.grid : defaultViewPrefs.grid,
       dimensions: typeof v?.dimensions === 'boolean' ? v.dimensions : defaultViewPrefs.dimensions,
       spellcheck: typeof v?.spellcheck === 'boolean' ? v.spellcheck : defaultViewPrefs.spellcheck,
-      navigation: v?.navigation === 'mouse' || v?.navigation === 'auto' ? v.navigation : 'trackpad',
+      navigation:
+        v?.navigation === 'mouse' || v?.navigation === 'trackpad' ? v.navigation : defaultViewPrefs.navigation,
       singleKeys: typeof v?.singleKeys === 'boolean' ? v.singleKeys : defaultViewPrefs.singleKeys,
       // Until the person chooses, follow the operating system's reduced-motion setting (gap F8).
       reduceMotion: typeof v?.reduceMotion === 'boolean' ? v.reduceMotion : systemReducedMotion,
@@ -95,6 +99,18 @@ export const dimensionLabel = (b: { w: number; h: number }) => `${Math.round(b.w
 /** Auto-detect (item 107): line-based or large whole-number vertical steps come from a mouse wheel. */
 export const wheelLooksLikeMouse = (e: { deltaMode: number; deltaX: number; deltaY: number }) =>
   e.deltaMode === 1 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50);
+
+/**
+ * Zoom multiplier for one wheel event. A mouse wheel notch (about 100 px) changes the zoom by about 16%; the
+ * earlier single rate made a notch more than double it (operator, 2026-11-26). A trackpad pinch arrives as
+ * Ctrl+wheel with small steps and keeps the faster rate, so the pinch still follows the fingers.
+ */
+export function wheelZoomFactor(e: { deltaMode: number; deltaX: number; deltaY: number; ctrlKey: boolean }) {
+  const pinch = e.ctrlKey && !wheelLooksLikeMouse(e),
+    // Line and page steps (deltaMode 1 and 2) are converted to pixels first.
+    pixels = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+  return Math.exp(-pixels * (pinch ? 0.008 : 0.0015));
+}
 
 /** True while Do Not Disturb is on (set on <html> by the app, so effects and sounds can check it). */
 export const doNotDisturb = () => typeof document !== 'undefined' && document.documentElement.dataset.dnd === 'on';

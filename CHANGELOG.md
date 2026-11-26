@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Mouse navigation
+
+- Dragging with the right mouse button moves the board, from empty canvas or from an object, and shows a closed
+  hand while it moves. A right-click that does not drag still opens the menu.
+- The mouse wheel now zooms without choosing a mode first: "Mouse or trackpad" starts on Auto-detect, so a wheel
+  zooms at the pointer and a trackpad still scrolls the board. A mode you chose earlier is kept.
+- Wheel zoom is gentler: one notch of a mouse wheel changes the zoom by about 16% instead of more than doubling
+  it. Pinching on a trackpad zooms as before.
+- The shortcut list names both.
+
 ## 0.7.0 — 2026-11-08
 
 ### Decided questions: large group

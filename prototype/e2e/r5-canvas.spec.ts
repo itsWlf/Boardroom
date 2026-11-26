@@ -213,3 +213,37 @@ test('pen draws, a finger pans in the pen tool, and a resting palm is ignored', 
   await page.waitForTimeout(400);
   expect((await savedBoard(page)).items.filter(i => i.type === 'pen')).toHaveLength(1);
 });
+
+test('the right mouse button drags the board; a right-click without dragging opens the menu', async ({ page }) => {
+  await seed(
+    page,
+    `const a = { ...m.createItem('rectangle', 0, 0), id: 'a', text: 'Box' };
+     return { version: 1, title: 'Pan', items: [a] };`,
+  );
+  await fit(page);
+  const menu = page.getByRole('menu', { name: 'Actions' });
+  const before = (await item(page, 'a').boundingBox())!,
+    x = before.x + before.width / 2,
+    y = before.y + before.height / 2;
+  // Dragging with the right button moves the view, starting on an object too, and opens no menu.
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(x + 60, y + 40, { steps: 4 });
+  await page.mouse.move(x + 120, y + 80, { steps: 4 });
+  await page.mouse.up({ button: 'right' });
+  const after = (await item(page, 'a').boundingBox())!;
+  expect(Math.round(after.x - before.x)).toBe(120);
+  expect(Math.round(after.y - before.y)).toBe(80);
+  await page.waitForTimeout(300);
+  await expect(menu).toHaveCount(0);
+  // The object itself did not move, and nothing was selected by the drag.
+  expect((await savedBoard(page)).items.find(i => i.id === 'a')).toMatchObject({ x: 0, y: 0 });
+  // A right-click that does not move still opens the menu for the object under it, and leaves the view alone.
+  await page.mouse.click(x + 120, y + 80, { button: 'right' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem').first()).toBeVisible();
+  // Compare centres: the selection the menu makes widens the object's measured outline evenly.
+  const selectedBox = (await item(page, 'a').boundingBox())!;
+  expect(Math.round(selectedBox.x + selectedBox.width / 2)).toBe(Math.round(after.x + after.width / 2));
+  expect(Math.round(selectedBox.y + selectedBox.height / 2)).toBe(Math.round(after.y + after.height / 2));
+});

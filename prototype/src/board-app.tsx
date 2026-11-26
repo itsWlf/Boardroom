@@ -1,7 +1,7 @@
 // Board application state and behaviour. UI components read it through useApp().
 import React, { useEffect, useRef, useState } from 'react';
 import { zoomCameraAt, clampZoom, centeredCamera } from './camera';
-import { loadViewPrefs, saveViewPrefs, wheelLooksLikeMouse, type ViewPrefs } from './view-prefs';
+import { loadViewPrefs, saveViewPrefs, wheelLooksLikeMouse, wheelZoomFactor, type ViewPrefs } from './view-prefs';
 import { useLatest } from './use-latest';
 import { deepLinkUrl, parseDeepLink } from './deep-link';
 import { rememberTemplateUse } from './user-templates';
@@ -1792,7 +1792,7 @@ function useBoardCore() {
         const rect = canvas.getBoundingClientRect(),
           at = { x: e.clientX - rect.left, y: e.clientY - rect.top };
         setCamera(c => {
-          const z = clampZoom(c.z * Math.exp(-e.deltaY * 0.008));
+          const z = clampZoom(c.z * wheelZoomFactor(e));
           return { z, x: at.x - ((at.x - c.x) * z) / c.z, y: at.y - ((at.y - c.y) * z) / c.z };
         });
       } else setCamera(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY }));
