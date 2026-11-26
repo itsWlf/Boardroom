@@ -6,6 +6,7 @@ import { stampKinds } from './specs-basic';
 import type { StampKind } from './specs-basic';
 import { qrMatrix, qrPath, QR_MAX } from './qr';
 import { Dialog, data, setData } from './widget-kit';
+import { searchIcons } from './icon-search';
 import { BrandSwatches } from './brand-kit-panel';
 import { ColorMenu } from './color-menu';
 import { EmojiPicker } from './emoji-picker';
@@ -298,12 +299,22 @@ type IconMap = Record<
   React.ComponentType<{ size?: number; color?: string; width?: number; height?: number; strokeWidth?: number }>
 >;
 let iconCache: IconMap | null = null,
-  iconPromise: Promise<IconMap> | null = null;
+  iconPromise: Promise<IconMap> | null = null,
+  /** Search words per icon name, loaded with the icons. */
+  iconWords: Record<string, string> = {};
 function useIcons(): IconMap | null {
   const [icons, setIcons] = useState<IconMap | null>(iconCache);
   useEffect(() => {
     if (iconCache) return;
-    iconPromise ??= import('lucide-react').then(m => (iconCache = m.icons as unknown as IconMap));
+    // The bundled set plus the extra icons drawn for Boardroom (icon-extras.ts), built with the same component.
+    iconPromise ??= Promise.all([import('lucide-react'), import('./icon-extras')]).then(([m, x]) => {
+      const extra = Object.entries(x.extraIcons).map(([n, node]) => [
+        n,
+        m.createLucideIcon(n, node.map(([tag, attrs], k) => [tag, { ...attrs, key: String(k) }]) as never),
+      ]);
+      iconWords = x.iconKeywords;
+      return (iconCache = { ...(m.icons as unknown as IconMap), ...Object.fromEntries(extra) } as IconMap);
+    });
     let live = true;
     iconPromise.then(i => {
       if (live) setIcons(i);
@@ -345,13 +356,7 @@ export function IconEditor({ item, ctx, onClose }: { item: Item; ctx: WidgetCtx;
     list = useRef<HTMLDivElement>(null);
   const names = useMemo(() => {
     if (!icons) return [];
-    const q = query
-      .trim()
-      .toLowerCase()
-      .replace(/[\s-]+/g, '');
-    return Object.keys(icons)
-      .filter(n => !q || n.toLowerCase().includes(q))
-      .slice(0, 240);
+    return searchIcons(Object.keys(icons), iconWords, query).slice(0, 240);
   }, [icons, query]);
   const move = (e: React.KeyboardEvent) => {
     const cols = 8,

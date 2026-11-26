@@ -492,11 +492,15 @@ export function ToolGallery({
         description: 'A board exported from another whiteboard opens as a new board',
       },
     ],
-    wireframes: wireframeComponents.map(c => ({
-      label: c.label,
-      kind: 'wf:' + c.id,
-      description: 'Wireframe component',
-    })),
+    wireframes: [
+      ...wireframeComponents.map(c => ({
+        label: c.label,
+        kind: 'wf:' + c.id,
+        description: 'Wireframe component',
+      })),
+      // Icons belong with the wireframe parts: place one, then pick from the searchable list.
+      { label: 'Icon', kind: 'icon', description: 'Pick from a searchable icon list' },
+    ],
   };
   const available = sub
     ? (submenus[sub] ?? [])

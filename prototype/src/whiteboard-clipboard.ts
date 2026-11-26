@@ -8,6 +8,7 @@
 import { createItem, parseBoard } from './model.ts';
 import type { Board, ImageAsset, Item } from './model.ts';
 import { SOURCE_ID } from './model-ext.ts';
+import { ICON_BY_CODE } from './icon-codes.ts';
 import { CLIP_FORMAT } from './clipboard.ts';
 import type { ClipPayload } from './clipboard.ts';
 import { importWhiteboardRest, stickyColors, typeLabel, WHITEBOARD_FORMAT } from './whiteboard-import.ts';
@@ -247,6 +248,17 @@ function strokeItem(w: Widget, centre: XY, size: { w: number; h: number }): Item
   }
 }
 
+/** The Boardroom icon for a copied icon: its icon font code is looked up in icon-codes.ts. */
+function iconName(j: Json): string | undefined {
+  const mockup = obj(j.mockup);
+  if (!str(mockup.type).includes('ICON')) return undefined;
+  try {
+    const code = str(obj(typeof mockup.info === 'string' ? JSON.parse(mockup.info) : mockup.info).icon);
+    return Object.hasOwn(ICON_BY_CODE, code.toLowerCase()) ? ICON_BY_CODE[code.toLowerCase()] : undefined;
+  } catch {
+    return undefined;
+  }
+}
 type PictureRef = NonNullable<Item['sourceImage']>;
 /** Text shown on a picture's placeholder. */
 export const PICTURE_HINT = 'Picture: drop the file here';
@@ -329,7 +341,8 @@ export function readWhiteboardClipboard(html: string, limit = 2000): WhiteboardP
   const items: Json[] = [],
     connectors: Json[] = [],
     strokes: Item[] = [],
-    pictures = new Map<string, PictureRef>();
+    pictures = new Map<string, PictureRef>(),
+    icons = new Map<string, { name: string; fill?: string }>();
   let loose = 0,
     unread = 0;
   widgets.forEach((w, k) => {
@@ -368,6 +381,8 @@ export function readWhiteboardClipboard(html: string, limit = 2000): WhiteboardP
       return;
     }
     if (w.type === 'image') pictures.set(String(k), pictureRef(root, obj(raw[k]), w.j));
+    const icon = w.type === 'mockup' ? iconName(w.j) : undefined;
+    if (icon) icons.set(String(k), { name: icon, fill: colour(w.style.tc) });
     const parts = restParts(w, size) ?? { type: placeholderType(w), data: {}, style: {} };
     items.push({
       id: String(k),
@@ -383,8 +398,19 @@ export function readWhiteboardClipboard(html: string, limit = 2000): WhiteboardP
   const report = made.report;
   report.danglingConnectors += loose;
   if (unread) report.skipped.unsupported = (report.skipped.unsupported ?? 0) + unread;
-  const pictureOf = new Map([...pictures].map(([k, ref]) => [made.itemIds[k], ref]));
+  const pictureOf = new Map([...pictures].map(([k, ref]) => [made.itemIds[k], ref])),
+    iconOf = new Map([...icons].map(([k, icon]) => [made.itemIds[k], icon]));
   const placed = [...made.board.items, ...strokes].map(i => {
+    // An icon with a known code becomes an Icon object: square, centred in the copied box, same id.
+    const icon = iconOf.get(i.id);
+    if (icon) {
+      const side = Math.min(i.w, i.h),
+        made = createItem('icon', Math.round(i.x + (i.w - side) / 2), Math.round(i.y + (i.h - side) / 2));
+      report.placeholders.ICON -= 1;
+      if (!report.placeholders.ICON) delete report.placeholders.ICON;
+      report.imported.icon = (report.imported.icon ?? 0) + 1;
+      return { ...made, id: i.id, w: side, h: side, data: { name: icon.name }, fill: icon.fill ?? made.fill };
+    }
     // A picture's placeholder remembers where the picture lives and its crop, and says how to fill it.
     const picture = pictureOf.get(i.id);
     if (picture) return { ...i, text: PICTURE_HINT, name: 'Picture placeholder', sourceImage: picture };

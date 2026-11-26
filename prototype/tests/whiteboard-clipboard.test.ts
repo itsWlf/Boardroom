@@ -323,3 +323,46 @@ test('unknown shape numbers are drawn as rectangles and counted; odd values neve
   assert.equal(paste.report.approximated, 1);
   assert.equal(paste.report.skipped.unsupported, 4);
 });
+
+test('a copied icon becomes an Icon object when its code is known', () => {
+  const icon = (code: string, x: number, extra: Record<string, unknown> = {}) =>
+    [
+      'mockup',
+      {
+        ...placed(x, 0),
+        scale: { scale: 2 },
+        size: { width: 48, height: 48 },
+        mockup: { info: JSON.stringify({ icon: code, text: '' }), type: 'WIREFRAMES_ICON_2020' },
+        style: JSON.stringify({ bc: 0, fw: 0, tc: 0x1c7ed6 }),
+        ...extra,
+      },
+    ] as [string, Record<string, unknown>];
+  const copy = copyOf([
+    icon('f07c', 0),
+    // Upper-case codes are read too; an extra drawn icon; a code nobody knows; a mockup that is not an icon.
+    icon('F015', 200),
+    icon('f6ed', 400),
+    icon('zzzz', 600),
+    icon('f07c', 800, { mockup: { info: '{}', type: 'WIREFRAMES_BUTTON' } }),
+    ['line', { primary: { widgetIndex: 1 }, secondary: { widgetIndex: 0 }, style: '{}' }],
+  ]);
+  const paste = readWhiteboardClipboard(clipboardHtml(copy))!,
+    board = parseBoard({ version: 1, title: 't', items: paste.payload.items }),
+    icons = board.items.filter(i => i.type === 'icon');
+  assert.deepEqual(
+    icons.map(i => [i.data?.name, i.x, i.y, i.w, i.h, i.fill]),
+    [
+      ['FolderOpen', -48, -48, 96, 96, '#1c7ed6'],
+      ['House', 152, -48, 96, 96, '#1c7ed6'],
+      ['Hippo', 352, -48, 96, 96, '#1c7ed6'],
+    ],
+  );
+  // The connector between two icons stays attached to them.
+  const line = board.items.find(i => i.type === 'arrow')!;
+  assert.deepEqual([line.from, line.to], [icons[1].id, icons[0].id]);
+  // Unknown code and other wireframe parts keep a placeholder.
+  assert.equal(board.items.filter(i => i.text === 'Icon object (not copied)').length, 1);
+  assert.equal(board.items.filter(i => i.text === 'Wireframe object (not copied)').length, 1);
+  assert.deepEqual(paste.report.placeholders, { ICON: 1, WIREFRAME: 1 });
+  assert.equal(paste.report.imported.icon, 3);
+});

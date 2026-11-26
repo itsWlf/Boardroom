@@ -116,7 +116,8 @@ export const basicSpecs: WidgetSpec[] = [
   {
     kind: 'icon',
     label: 'Icon',
-    description: 'Search and add recolourable icons (Lucide icon set, ISC licence)',
+    description:
+      'Search and add recolourable icons (Lucide icon set, ISC licence, plus extra icons drawn for Boardroom)',
     category: 'Essentials',
     size: [72, 72],
     init: i => withData(i, { name: 'Star' }, { fill: '#25252a' }),

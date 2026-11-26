@@ -16,6 +16,17 @@
   and an access token. With both saved, pasted pictures are downloaded and filled in automatically. The token
   stays in this browser and is sent only to that address; without it Boardroom contacts no service when pasting.
 - A pasted text box is a little wider and grows with its text, so words that wrap here are no longer cut off.
+- Pasted icons arrive as Icon objects in their colour and size instead of placeholders. Each icon of the free
+  "classic" icon font is matched to the bundled icon that shows the same thing; where the bundled set has none,
+  Boardroom now has its own drawing. Brand logos are not included and stay placeholders.
+
+### Icons
+
+- 614 extra icons drawn for Boardroom in the bundled set's outline style (animals, people, buildings, vehicles,
+  letters and digits, symbols and more) are in the icon list next to the bundled ones.
+- Icon search understands other names for the same thing: "floppy" finds Save, "magnifying glass" finds Search,
+  "gear" finds Settings. Names that contain what you typed are listed first.
+- The wireframe library lists Icon, so icons can be placed from there too.
 - A copy from a board that forbids copying its content is refused.
 
 ### Mouse navigation
