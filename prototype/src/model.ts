@@ -299,6 +299,12 @@ export type Item = {
    */
   originalAssetId?: string;
   crop?: Crop;
+  /**
+   * Marks a placeholder for a picture copied in another whiteboard (whiteboard-clipboard.ts): the board and object
+   * the picture belongs to there (when known) and how it was cropped. A picture dropped on the placeholder, or
+   * downloaded with the configured access token, replaces it in the same place.
+   */
+  sourceImage?: { board?: string; item?: string; crop?: Crop };
   /** Image flip, brightness and contrast, applied when drawn; the stored picture is unchanged. */
   adjust?: ImageAdjust;
   /** Animated GIF playback (track G): start paused, and/or play the animation once instead of looping. */

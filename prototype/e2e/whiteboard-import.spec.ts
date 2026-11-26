@@ -1,6 +1,6 @@
 // Whiteboard JSON (REST export) import: the upload menu, the regular board import and a dropped file each
 // open the export as a new library board and report what was skipped.
-import { test, expect, seed, savedBoard, openTools, type BoardJson } from './helpers';
+import { test, expect, seed, savedBoard, openApp, openTools, waitForSave, type BoardJson } from './helpers';
 import type { Page } from '@playwright/test';
 
 const INDEX_KEY = 'boardroom.boards.v1';
@@ -180,4 +180,60 @@ test('two top-level frames: the import asks about layers and puts each frame on 
   await expect(page.getByRole('status').filter({ hasText: 'as a new board' })).toContainText(
     'Made 2 layers, one per frame. Placeholders mark 1 table',
   );
+});
+
+test('objects copied in another whiteboard paste as objects, in one undo step', async ({ page }) => {
+  await openApp(page);
+  // The other app's clipboard block: JSON as UTF-8 bytes raised by 59, base64, inside a marker in a span.
+  const copy = {
+    isProtected: false,
+    data: {
+      objects: [
+        ['sticker', { size: { width: 200, height: 230 }, text: '<p>Pasted note</p>', style: '{"sbc":16775070}' }, -300],
+        [
+          'shape',
+          { size: { width: 300, height: 100 }, text: '<p>Pasted box</p>', shape: '3', style: '{"brw":2}' },
+          200,
+        ],
+      ].map(([type, json, x]) => ({
+        widgetData: {
+          type,
+          json: {
+            ...(json as object),
+            _position: { offsetPx: { x, y: 0 }, schema: 'canvasOffsetPx' },
+            _parent: null,
+            scale: { scale: 1 },
+          },
+        },
+      })),
+    },
+  };
+  (copy.data.objects as unknown[]).push({
+    widgetData: {
+      type: 'line',
+      json: { primary: { widgetIndex: 0 }, secondary: { widgetIndex: 1 }, style: '{"lt":1,"a_end":9}' },
+    },
+  });
+  const packed = Buffer.from(Buffer.from(JSON.stringify(copy), 'utf8').map(b => (b + 59) & 255)).toString('base64');
+  const marker = ['miro', 'data', 'v1'].join('-');
+  await page.evaluate(html => {
+    const dt = new DataTransfer();
+    dt.setData('text/html', html);
+    dt.setData('text/plain', 'Pasted note\nPasted box');
+    window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt }));
+  }, `<span data-meta="<--(${marker})${packed}(/${marker})-->"></span><div>Pasted note</div>`);
+  await expect(page.getByText('Pasted 3 objects from another whiteboard.')).toBeVisible();
+  await waitForSave(page, b => b.items.length === 3, 'three objects pasted');
+  const items = (await savedBoard(page)).items,
+    note = items.find(i => i.type === 'note'),
+    box = items.find(i => i.type === 'rectangle'),
+    line = items.find(i => i.type === 'arrow');
+  expect(note.text).toBe('Pasted note');
+  expect(box.text).toBe('Pasted box');
+  // The plain text was not pasted as extra notes, positions are kept, and the connector is attached.
+  expect(box.x - note.x).toBe(450);
+  expect([line.from, line.to]).toEqual([note.id, box.id]);
+  await page.locator('svg.canvas').focus();
+  await page.keyboard.press('Control+z');
+  await waitForSave(page, b => b.items.length === 0, 'one undo removes the paste');
 });

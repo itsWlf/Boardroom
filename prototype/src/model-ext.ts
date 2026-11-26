@@ -210,6 +210,8 @@ export function validateExtensions(b: Board): void {
       throw new Error('Invalid record grouping field.');
 }
 
+/** Board and object ids of another whiteboard, as kept on a picture placeholder (`sourceImage`). */
+export const SOURCE_ID = /^[A-Za-z0-9_=+/-]{1,80}$/;
 function validateItem(i: Item, groups: Set<string>): void {
   const c = i.connector;
   if (
@@ -287,6 +289,22 @@ function validateItem(i: Item, groups: Set<string>): void {
       i.crop.y + i.crop.h > 1.0001)
   )
     throw new Error('Invalid image crop.');
+  const si = i.sourceImage;
+  if (
+    si !== undefined &&
+    (!si ||
+      typeof si !== 'object' ||
+      [si.board, si.item].some(v => v !== undefined && (typeof v !== 'string' || !SOURCE_ID.test(v))) ||
+      (si.crop !== undefined &&
+        (!si.crop ||
+          !finite(si.crop.x, 0, 1) ||
+          !finite(si.crop.y, 0, 1) ||
+          !finite(si.crop.w, 0.01, 1) ||
+          !finite(si.crop.h, 0.01, 1) ||
+          si.crop.x + si.crop.w > 1.0001 ||
+          si.crop.y + si.crop.h > 1.0001)))
+  )
+    throw new Error('Invalid picture placeholder.');
   const adj = i.adjust;
   if (
     adj !== undefined &&

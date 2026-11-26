@@ -498,6 +498,8 @@ export type WhiteboardImport = {
   report: WhiteboardImportReport;
   /** Image files carried by the export (data URLs), keyed by the new items' assetId. */
   assets: Record<string, ImageAsset>;
+  /** The Boardroom object made for each source item id (objects, placeholders and connectors). */
+  itemIds: Record<string, string>;
 };
 type Source = {
   raw: Json;
@@ -1117,5 +1119,10 @@ export function importWhiteboardRest(
     board = layersPerFrame(board, topFrameOf);
     report.layers = board.layers ? board.layers.length - 1 : 0;
   }
-  return { board: parseBoard(board), report, assets };
+  return {
+    board: parseBoard(board),
+    report,
+    assets,
+    itemIds: Object.fromEntries([...idMap].map(([sourceId, item]) => [sourceId, item.id])),
+  };
 }

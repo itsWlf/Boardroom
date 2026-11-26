@@ -10,6 +10,7 @@ import { reorderLayer, setHidden, renameItem } from './board-tools';
 import { LayersPanel } from './board-panels';
 import { NamedLayers } from './layers-panel';
 import { PassphraseHost } from './passphrase-dialog';
+import { WhiteboardApiHost } from './whiteboard-api-dialog';
 import { SheetPickerHost } from './sheet-picker';
 import { ChoicePromptHost } from './choice-prompt';
 import { BoardOutline } from './board-outline';
@@ -326,6 +327,7 @@ export function BoardChrome() {
         </aside>
       )}
       <PassphraseHost />
+      <WhiteboardApiHost />
       <SheetPickerHost />
       <ChoicePromptHost />
       <BoardOutline />

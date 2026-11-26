@@ -43,4 +43,4 @@ Before committing, run `npm run check` in `prototype/`. It runs the Prettier che
 
 ## Privacy
 
-Boards, images and media stay in the browser's local storage and IndexedDB. The app makes no network requests except for embeds you add and the Draw.io editor when you open it.
+Boards, images and media stay in the browser's local storage and IndexedDB. The app makes no network requests except for embeds you add, the Draw.io editor when you open it, pictures you drag in from web pages, and, only if you save an access token under Preferences → Picture download, the pictures of objects pasted from another whiteboard.

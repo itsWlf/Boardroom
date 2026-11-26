@@ -112,6 +112,14 @@ import type { BoardMetaPatch, Library, OpenTarget, SpaceInfo } from './board-lib
 import { createFromBlueprint, type Blueprint } from './blueprints';
 import { copySelection, clipboardFormats, readClipboardHtml, pastePayload, cutIds } from './clipboard';
 import type { ClipPayload } from './clipboard';
+import {
+  fillPicturePlaceholder,
+  picturePlaceholderAt,
+  readWhiteboardClipboard,
+  whiteboardPasteNote,
+  type WhiteboardPaste,
+} from './whiteboard-clipboard';
+import { fetchSourcePicture, loadWhiteboardApi, type WhiteboardApi } from './whiteboard-api';
 import { useCanvasGestures } from './use-canvas-gestures';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { useDeepLinks } from './use-deep-links';
@@ -542,13 +550,41 @@ function useBoardCore() {
     setSelected(result.ids);
     setEditing(null);
   }
+  /**
+   * Objects copied in another whiteboard app (whiteboard-clipboard.ts). True when the HTML was such a copy,
+   * whether or not it could be pasted, so the caller does not also paste its plain text.
+   */
+  function pasteWhiteboardCopy(html: string, at?: Point): boolean {
+    const room = 2000 - boardRef.current.items.length;
+    let copy: WhiteboardPaste | null;
+    try {
+      copy = readWhiteboardClipboard(html, Math.max(1, room));
+    } catch (error) {
+      display((error as Error).message, undefined, 'error');
+      return true;
+    }
+    if (!copy) return false;
+    const before = boardRef.current;
+    pasteObjects(copy.payload, at);
+    // A full or read-only board refuses the paste with its own message.
+    if (boardRef.current === before) return true;
+    const note = whiteboardPasteNote(copy),
+      settings = loadWhiteboardApi(),
+      known = new Set(before.items.map(i => i.id)),
+      pictures = boardRef.current.items.filter(i => !known.has(i.id) && i.sourceImage?.board && i.sourceImage.item);
+    if (settings && pictures.length) void downloadPictures(settings, pictures, note);
+    else display(note);
+    return true;
+  }
   /** Context-menu paste: read the system clipboard when allowed, otherwise use the last copy in this tab. */
   async function pasteFromMenu(at: Point) {
     let payload: ClipPayload | null = null;
     try {
       for (const entry of await navigator.clipboard.read()) {
-        if (entry.types.includes('text/html'))
-          payload = readClipboardHtml(await (await entry.getType('text/html')).text());
+        if (!entry.types.includes('text/html')) continue;
+        const html = await (await entry.getType('text/html')).text();
+        payload = readClipboardHtml(html);
+        if (!payload && pasteWhiteboardCopy(html, at)) return;
         if (payload) break;
       }
     } catch {
@@ -921,6 +957,43 @@ function useBoardCore() {
     setAssets(a => ({ ...a, [id]: asset, ...(original && originalId ? { [originalId]: original } : {}) }));
     return { id, asset, originalId };
   }
+  /** Store a picture file and put it in place of a picture placeholder (one undo step). */
+  async function fillPlaceholder(id: string, f: File) {
+    const { id: assetId, asset, originalId } = await storeImageFile(f);
+    const next = fillPicturePlaceholder(boardRef.current, id, assetId, asset, originalId);
+    if (next === boardRef.current) return false;
+    update(next);
+    return boardRef.current.items.some(i => i.id === id && i.type === 'image');
+  }
+  /**
+   * Download the pictures of freshly pasted placeholders with the saved access token (whiteboard-api.ts) and
+   * fill them in as they arrive. Stops when another board is opened; a failure leaves its placeholder.
+   */
+  async function downloadPictures(settings: WhiteboardApi, pasted: Item[], note: string) {
+    const boardId = libraryRef.current.activeId,
+      many = (n: number) => `${n} ${n === 1 ? 'picture' : 'pictures'}`;
+    display(`${note} Downloading ${many(pasted.length)}…`);
+    let filled = 0,
+      failure = '';
+    for (const p of pasted) {
+      if (libraryRef.current.activeId !== boardId) return;
+      try {
+        const got = await fetchSourcePicture(settings, { board: p.sourceImage!.board!, item: p.sourceImage!.item! });
+        if (libraryRef.current.activeId !== boardId) return;
+        if (await fillPlaceholder(p.id, new File([got.blob], got.name, { type: got.mime }))) filled++;
+      } catch (error) {
+        failure = error instanceof Error && error.message ? error.message : 'The picture could not be stored.';
+      }
+    }
+    const missed = pasted.length - filled;
+    if (!missed) display(`Downloaded ${many(filled)}.`);
+    else
+      display(
+        `${filled ? `Downloaded ${many(filled)}. ` : ''}${many(missed)} could not be downloaded${failure ? `: ${failure}` : '.'} Drop the file onto its placeholder instead.`,
+        undefined,
+        'error',
+      );
+  }
   async function insertImages(files: File[], at?: Point) {
     const images = files.filter(f => f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name));
     if (!images.length) {
@@ -930,6 +1003,18 @@ function useBoardCore() {
     const center = at ?? toWorld(size.w / 2, size.h / 2),
       added: Item[] = [],
       errors: string[] = [];
+    // A picture dropped on a picture placeholder (or pasted while one is selected) fills it in place.
+    const current = boardRef.current,
+      chosen = selected.length === 1 ? current.items.find(i => i.id === selected[0]) : undefined,
+      placeholder = at ? picturePlaceholderAt(current, at) : chosen?.sourceImage && !chosen.locked ? chosen : undefined;
+    if (placeholder) {
+      try {
+        await fillPlaceholder(placeholder.id, images[0]);
+        images.shift();
+      } catch (error) {
+        errors.push(error instanceof Error && error.message ? error.message : 'The picture could not be stored.');
+      }
+    }
     for (const [index, f] of images.slice(0, 20).entries()) {
       try {
         const { id, asset, originalId } = await storeImageFile(f);
@@ -1723,10 +1808,15 @@ function useBoardCore() {
         (e.target as HTMLElement)?.closest?.('input,textarea,select,[contenteditable=true]')
       )
         return;
-      const objects = readClipboardHtml(e.clipboardData?.getData('text/html') ?? '');
+      const html = e.clipboardData?.getData('text/html') ?? '',
+        objects = readClipboardHtml(html);
       if (objects) {
         e.preventDefault();
         pasteObjects(objects);
+        return;
+      }
+      if (pasteWhiteboardCopy(html)) {
+        e.preventDefault();
         return;
       }
       const files = [...(e.clipboardData?.files ?? [])].filter(f => f.type.startsWith('image/'));

@@ -30,7 +30,12 @@ test('UI source names no assistant, AI vendor or the analysed commercial product
       /\.(tsx?|css|js|html|json)$/.test(f),
     )) {
       const lines = readFileSync(join(dir, f), 'utf8').split('\n');
-      lines.forEach((line, i) => banned.test(line) && hits.push(`${f}:${i + 1}`));
+      // One exception (operator, 2026-11-26): the clipboard reader must match the other app's data marker, a
+      // technical constant that never reaches the UI. Only that exact literal, only in that file.
+      const allowed = f === 'whiteboard-clipboard.ts' ? /'miro-data-v1'/g : null;
+      lines.forEach(
+        (line, i) => banned.test(allowed ? line.replace(allowed, "''") : line) && hits.push(`${f}:${i + 1}`),
+      );
     }
   const index = readFileSync(join(proto, 'index.html'), 'utf8');
   if (banned.test(index)) hits.push('index.html');

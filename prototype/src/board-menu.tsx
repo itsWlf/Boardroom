@@ -28,6 +28,7 @@ import { undo, redo, newBoard } from './model';
 import { settingsLocked, settingsLockedNote, withBoardMode } from './board-modes';
 import { TemplatePicker } from './template-picker';
 import { BrandKitPanel } from './brand-kit-panel';
+import { openWhiteboardApiSettings } from './whiteboard-api-dialog';
 import { boardFromTemplate } from './user-templates';
 import './library-r2.css';
 
@@ -667,6 +668,7 @@ export function BoardMenu() {
         toggle('Spell check', viewPrefs.spellcheck, () => setViewPrefs({ spellcheck: !viewPrefs.spellcheck })),
         item('Profile settings', () => setFacil('authors')),
         item('Brand kit', () => setPanel('brand')),
+        item('Picture download…', () => openWhiteboardApiSettings(display)),
       ],
     },
     {

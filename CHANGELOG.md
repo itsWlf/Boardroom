@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Paste from another whiteboard
+
+- Objects copied in another whiteboard app (Ctrl+C there, Ctrl+V here, or Paste in the right-click menu) now
+  arrive as Boardroom objects instead of plain text: sticky notes with their colour, shapes with border and text
+  styling, text boxes at their size, frames with their title, pen strokes, link previews as bookmarks, and
+  connectors that stay attached. Positions and sizes are kept, and the paste is one undo step.
+- Pictures, icons and kinds that cannot be read keep their place as a dashed placeholder: the clipboard holds no
+  picture files. Connectors with a loose end are left out. The message after pasting says what was left out.
+- A picture's placeholder can be filled: drop the picture file on it (or paste a picture while it is selected) and
+  it becomes the image in the same place, with the copied size and crop, still attached to its connectors.
+- Optional picture download: Main menu → Preferences → Picture download… takes the other whiteboard's API address
+  and an access token. With both saved, pasted pictures are downloaded and filled in automatically. The token
+  stays in this browser and is sent only to that address; without it Boardroom contacts no service when pasting.
+- A pasted text box is a little wider and grows with its text, so words that wrap here are no longer cut off.
+- A copy from a board that forbids copying its content is refused.
+
 ### Mouse navigation
 
 - Dragging with the right mouse button moves the board, from empty canvas or from an object, and shows a closed
