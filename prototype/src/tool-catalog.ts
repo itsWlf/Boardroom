@@ -55,7 +55,10 @@ export const catalog: Record<string, CatalogEntry[]> = {
     e('Text', 'text'),
     e('User card', 'usercard', 'Show a person with their role, team and contact'),
   ],
-  Libraries: [e('Wireframe library', 'submenu:wireframes', 'Drag, drop, and customize UI elements')],
+  Libraries: [
+    e('Wireframe library', 'submenu:wireframes', 'Drag, drop, and customize UI elements'),
+    e('Icon', 'icon', 'Pick from a searchable icon list'),
+  ],
   'Customizable Widgets': [
     e('Action Shortcut', 'shortcut', 'A button that runs an action'),
     unavailable('AI instruction'),
@@ -64,6 +67,7 @@ export const catalog: Record<string, CatalogEntry[]> = {
     unavailable('AWS Cloud View'),
     e('Diagramming shapes', 'rectangle'),
     e('Draw.io Diagrams', 'drawio', 'Edit technical diagrams and import .drawio files'),
+    e('Icon', 'icon', 'Pick from a searchable icon list'),
     e('Layers', 'layers'),
     e('Org chart', 'orgchart'),
     e('Shapes and lines', 'rectangle'),

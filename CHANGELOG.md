@@ -26,7 +26,7 @@
   letters and digits, symbols and more) are in the icon list next to the bundled ones.
 - Icon search understands other names for the same thing: "floppy" finds Save, "magnifying glass" finds Search,
   "gear" finds Settings. Names that contain what you typed are listed first.
-- The wireframe library lists Icon, so icons can be placed from there too.
+- Icon is listed under Libraries and Diagramming in the tools gallery, as well as under Media.
 - A copy from a board that forbids copying its content is refused.
 
 ### Mouse navigation
