@@ -91,3 +91,56 @@ test('icon search matches names and search words, names first', () => {
   assert.ok(searchIcons(all, iconKeywords, 'gear').includes('Settings'));
   assert.equal(searchIcons(all, iconKeywords, 'hippo')[0], 'Hippo');
 });
+
+test('the solid set: every code has a drawn icon, drawings are valid filled shapes, and the Icon object takes it', async () => {
+  const { SOLID_BY_CODE } = await import('../src/icon-codes.ts');
+  const { solidIcons, solidKeywords } = await import('../src/icon-solid.ts');
+  assert.deepEqual(
+    Object.entries(SOLID_BY_CODE).filter(([, name]) => !solidIcons[name]),
+    [],
+  );
+  // Both tables cover the same codes, so every pasted icon has a solid drawing and an outline fallback.
+  assert.deepEqual(Object.keys(SOLID_BY_CODE).sort(), Object.keys(ICON_BY_CODE).sort());
+  assert.equal(SOLID_BY_CODE.f07c, 'FolderOpen');
+  assert.equal(SOLID_BY_CODE.f0d7, 'CaretDown');
+  const allowed: Record<string, string[]> = {
+    path: ['d'],
+    circle: ['cx', 'cy', 'r'],
+    ellipse: ['cx', 'cy', 'rx', 'ry'],
+    rect: ['x', 'y', 'width', 'height', 'rx', 'ry'],
+    polygon: ['points'],
+  };
+  const problems: string[] = [];
+  for (const [name, nodes] of Object.entries(solidIcons)) {
+    if (!/^[A-Z][A-Za-z0-9]*$/.test(name) || name.length > 60) problems.push(`${name}: not a valid icon name`);
+    if (!solidKeywords[name]) problems.push(`${name}: no search words`);
+    if (!nodes.length || nodes.length > 8) problems.push(`${name}: ${nodes.length} elements`);
+    for (const [tag, attrs] of nodes) {
+      if (!allowed[tag]) problems.push(`${name}: <${tag}>`);
+      for (const [key, value] of Object.entries(attrs)) {
+        if (!allowed[tag]?.includes(key)) problems.push(`${name}: ${tag} ${key}`);
+        else if (key === 'd') {
+          // Filled paths are closed, and their numbers stay on the 24 grid (not another set's larger grid).
+          if (!/^[Mm][MmLlHhVvCcSsQqTtAaZz0-9\s,.-]*[Zz]\s*$/.test(value)) problems.push(`${name}: path not closed`);
+          if ((value.match(/-?\d*\.?\d+/g) ?? []).some(v => Math.abs(Number(v)) > 40))
+            problems.push(`${name}: off grid`);
+        } else if (key === 'points' ? !/^[0-9\s,.-]+$/.test(value) : !(Number(value) >= -0.5 && Number(value) <= 24.5))
+          problems.push(`${name}: ${key}=${value}`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+  assert.deepEqual(
+    Object.keys(solidKeywords).filter(n => !solidIcons[n]),
+    [],
+  );
+  // New icons start as a solid Star; the style field accepts only 'solid'.
+  const fresh = createItem('icon', 0, 0);
+  assert.deepEqual(fresh.data, { name: 'Star', set: 'solid' });
+  assert.ok(solidIcons.Star);
+  const load = (data: unknown) => parseBoard({ version: 1, title: 't', items: [{ ...fresh, data }] });
+  load({ name: 'Hippo', set: 'solid' });
+  load({ name: 'Hippo' });
+  assert.throws(() => load({ name: 'Hippo', set: 'filled' }), /Invalid icon style/);
+  assert.equal(searchIcons(Object.keys(solidIcons), solidKeywords, 'floppy')[0], 'FloppyDisk');
+});

@@ -41,6 +41,10 @@ Before committing, run `npm run check` in `prototype/`. It runs the Prettier che
 | [`DRAWIO-LOCAL-HOSTING.md`](DRAWIO-LOCAL-HOSTING.md) | Optional self-hosted Draw.io editor |
 | [`AGENTS.md`](AGENTS.md) | Guidance for coding agents: commands, architecture and conventions |
 
+## Credits
+
+Outline icons come from [Lucide](https://lucide.dev) (ISC licence). The solid icons were drawn for Boardroom after the pictograms of [Font Awesome Free](https://fontawesome.com) (CC BY 4.0); they are new drawings, not copies of its files.
+
 ## Privacy
 
 Boards, images and media stay in the browser's local storage and IndexedDB. The app makes no network requests except for embeds you add, the Draw.io editor when you open it, pictures you drag in from web pages, and, only if you save an access token under Preferences → Picture download, the pictures of objects pasted from another whiteboard.

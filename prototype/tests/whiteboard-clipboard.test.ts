@@ -357,6 +357,8 @@ test('a copied icon becomes an Icon object when its code is known', () => {
       ['Hippo', 352, -48, 96, 96, '#1c7ed6'],
     ],
   );
+  // Pasted icons use the solid drawings, the closer likeness of the copied icon.
+  assert.ok(icons.every(i => i.data?.set === 'solid'));
   // The connector between two icons stays attached to them.
   const line = board.items.find(i => i.type === 'arrow')!;
   assert.deepEqual([line.from, line.to], [icons[1].id, icons[0].id]);

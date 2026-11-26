@@ -298,36 +298,64 @@ type IconMap = Record<
   string,
   React.ComponentType<{ size?: number; color?: string; width?: number; height?: number; strokeWidth?: number }>
 >;
-let iconCache: IconMap | null = null,
-  iconPromise: Promise<IconMap> | null = null,
-  /** Search words per icon name, loaded with the icons. */
-  iconWords: Record<string, string> = {};
-function useIcons(): IconMap | null {
-  const [icons, setIcons] = useState<IconMap | null>(iconCache);
-  useEffect(() => {
-    if (iconCache) return;
-    // The bundled set plus the extra icons drawn for Boardroom (icon-extras.ts), built with the same component.
-    iconPromise ??= Promise.all([import('lucide-react'), import('./icon-extras')]).then(([m, x]) => {
+/** An icon style: thin outlines (the bundled set plus icon-extras.ts) or bold filled shapes (icon-solid.ts). */
+type IconSet = 'outline' | 'solid';
+type LoadedSet = { icons: IconMap; words: Record<string, string> };
+type IconData = { name: string; set?: 'solid' };
+const setOf = (d: IconData): IconSet => (d.set === 'solid' ? 'solid' : 'outline');
+/** A filled icon drawn from its elements; holes are cut by the even-odd rule. */
+const solidComponent =
+  (nodes: [string, Record<string, string>][]): IconMap[string] =>
+  ({ size = 24, color = 'currentColor', width, height }) => (
+    <svg
+      viewBox="0 0 24 24"
+      width={width ?? size}
+      height={height ?? size}
+      fill={color}
+      fillRule="evenodd"
+      stroke="none"
+      aria-hidden="true"
+    >
+      {nodes.map(([tag, attrs], k) => React.createElement(tag, { ...attrs, key: k }))}
+    </svg>
+  );
+const loaders: Record<IconSet, () => Promise<LoadedSet>> = {
+  // The bundled set plus the extra outline icons drawn for Boardroom, built with the same component.
+  outline: () =>
+    Promise.all([import('lucide-react'), import('./icon-extras')]).then(([m, x]) => {
       const extra = Object.entries(x.extraIcons).map(([n, node]) => [
         n,
         m.createLucideIcon(n, node.map(([tag, attrs], k) => [tag, { ...attrs, key: String(k) }]) as never),
       ]);
-      iconWords = x.iconKeywords;
-      return (iconCache = { ...(m.icons as unknown as IconMap), ...Object.fromEntries(extra) } as IconMap);
-    });
+      return { icons: { ...(m.icons as unknown as IconMap), ...Object.fromEntries(extra) }, words: x.iconKeywords };
+    }),
+  solid: () =>
+    import('./icon-solid').then(s => ({
+      icons: Object.fromEntries(Object.entries(s.solidIcons).map(([n, nodes]) => [n, solidComponent(nodes)])),
+      words: s.solidKeywords,
+    })),
+};
+const iconCache: Partial<Record<IconSet, LoadedSet>> = {},
+  iconPromise: Partial<Record<IconSet, Promise<LoadedSet>>> = {};
+/** The icons and search words of one style, loaded on first use. */
+function useIcons(set: IconSet): LoadedSet | null {
+  const [loaded, setLoaded] = useState<Partial<Record<IconSet, LoadedSet>>>(iconCache);
+  useEffect(() => {
+    if (iconCache[set]) return;
+    iconPromise[set] ??= loaders[set]().then(l => (iconCache[set] = l));
     let live = true;
-    iconPromise.then(i => {
-      if (live) setIcons(i);
+    iconPromise[set]!.then(() => {
+      if (live) setLoaded({ ...iconCache });
     });
     return () => {
       live = false;
     };
-  }, []);
-  return icons;
+  }, [set]);
+  return loaded[set] ?? iconCache[set] ?? null;
 }
 export function IconRender({ item }: { item: Item }) {
-  const icons = useIcons(),
-    Icon = icons?.[data<{ name: string }>(item).name];
+  const d = data<IconData>(item),
+    Icon = useIcons(setOf(d))?.icons[d.name];
   return (
     <>
       <rect width={item.w} height={item.h} fill="transparent" />
@@ -349,15 +377,18 @@ export function IconRender({ item }: { item: Item }) {
   );
 }
 export function IconEditor({ item, ctx, onClose }: { item: Item; ctx: WidgetCtx; onClose: () => void }) {
-  const icons = useIcons(),
+  const initial = data<IconData>(item),
+    [set, setSet] = useState<IconSet>(setOf(initial)),
+    loaded = useIcons(set),
+    icons = loaded?.icons,
     [query, setQuery] = useState(''),
-    [name, setName] = useState(data<{ name: string }>(item).name),
+    [name, setName] = useState(initial.name),
     [color, setColor] = useState(item.fill),
     list = useRef<HTMLDivElement>(null);
   const names = useMemo(() => {
-    if (!icons) return [];
-    return searchIcons(Object.keys(icons), iconWords, query).slice(0, 240);
-  }, [icons, query]);
+    if (!loaded) return [];
+    return searchIcons(Object.keys(loaded.icons), loaded.words, query).slice(0, 240);
+  }, [loaded, query]);
   const move = (e: React.KeyboardEvent) => {
     const cols = 8,
       step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
@@ -371,15 +402,35 @@ export function IconEditor({ item, ctx, onClose }: { item: Item; ctx: WidgetCtx;
     <Dialog
       wide
       title="Icons"
-      hint="Search the bundled icon set; arrow keys move, Enter applies."
+      hint="Choose a style and search the icons; arrow keys move, Enter applies."
       onClose={onClose}
       onApply={() => {
-        setData(ctx, item.id, { name }, { fill: color });
+        // `set` is only stored for solid icons, so outline icons saved by older boards stay as they are.
+        setData(ctx, item.id, set === 'solid' ? { name, set } : { name }, { fill: color });
         onClose();
       }}
       applyDisabled={!icons?.[name]}
     >
       <div className="w-icon-tools">
+        <span className="segmented" role="radiogroup" aria-label="Icon style">
+          {(
+            [
+              ['solid', 'Solid'],
+              ['outline', 'Outline'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={set === value}
+              className={set === value ? 'active' : ''}
+              onClick={() => setSet(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </span>
         <input
           aria-label="Search icons"
           placeholder="Search icons"

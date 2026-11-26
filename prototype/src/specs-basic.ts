@@ -117,13 +117,15 @@ export const basicSpecs: WidgetSpec[] = [
     kind: 'icon',
     label: 'Icon',
     description:
-      'Search and add recolourable icons (Lucide icon set, ISC licence, plus extra icons drawn for Boardroom)',
+      'Search and add recolourable icons: solid icons redrawn for Boardroom after Font Awesome Free (CC BY 4.0), and outline icons from the Lucide set (ISC licence) with extra drawings',
     category: 'Essentials',
     size: [72, 72],
-    init: i => withData(i, { name: 'Star' }, { fill: '#25252a' }),
+    // New icons start in the solid style (operator, 2026-11-26); icons without `set` are outline icons.
+    init: i => withData(i, { name: 'Star', set: 'solid' }, { fill: '#25252a' }),
     validate: i => {
       const n = d(i).name;
       if (typeof n !== 'string' || !/^[A-Z][A-Za-z0-9]*$/.test(n) || n.length > 60) fail('Invalid icon name.');
+      if (d(i).set !== undefined && d(i).set !== 'solid') fail('Invalid icon style.');
     },
     searchText: i => d(i).name ?? '',
   },

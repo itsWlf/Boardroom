@@ -18,8 +18,12 @@ test('a selected icon opens the searchable list; search words and extra icons wo
     search = dialog.getByLabel('Search icons'),
     list = dialog.getByRole('listbox', { name: 'Icons' });
   await expect(list.getByRole('option').first()).toBeVisible({ timeout: 20_000 });
-  // Another name for the same thing finds the bundled icon.
+  // A new icon is in the solid style: another name for the same thing finds the solid drawing.
+  await expect(dialog.getByRole('radio', { name: 'Solid' })).toHaveAttribute('aria-checked', 'true');
   await search.fill('floppy');
+  await expect(list.getByRole('option', { name: 'Floppy Disk', exact: true })).toBeVisible();
+  // The outline style lists the bundled set and the extra outline drawings.
+  await dialog.getByRole('radio', { name: 'Outline' }).click();
   await expect(list.getByRole('option', { name: 'Save', exact: true })).toBeVisible();
   await search.fill('magnifying glass');
   await expect(list.getByRole('option', { name: 'Search', exact: true })).toBeVisible();
@@ -29,7 +33,18 @@ test('a selected icon opens the searchable list; search words and extra icons wo
   await expect(hippo.locator('svg path').first()).toBeAttached();
   await hippo.click();
   await dialog.locator('button.primary').click();
-  await waitForSave(page, b => b.items[0].data.name === 'Hippo', 'the extra icon is stored');
+  await waitForSave(page, b => b.items[0].data.name === 'Hippo' && !b.items[0].data.set, 'the outline icon is stored');
+  await expect(item(page, 'ic').locator('svg path').first()).toBeAttached();
+  // Back to solid: the same subject exists there too, and the style is stored with the icon.
+  await page
+    .getByRole('toolbar', { name: 'Selection actions' })
+    .getByRole('button', { name: 'Edit', exact: true })
+    .click();
+  await dialog.getByRole('radio', { name: 'Solid' }).click();
+  await search.fill('hippo');
+  await list.getByRole('option', { name: 'Hippo', exact: true }).click();
+  await dialog.locator('button.primary').click();
+  await waitForSave(page, b => b.items[0].data.set === 'solid', 'the solid icon is stored');
   await expect(item(page, 'ic').locator('svg path').first()).toBeAttached();
 });
 
@@ -65,7 +80,7 @@ test('an icon copied in another whiteboard is pasted as an Icon object', async (
   await waitForSave(page, b => b.items.length === 1, 'the icon is pasted');
   const icon = (await savedBoard(page)).items[0];
   expect(icon.type).toBe('icon');
-  expect(icon.data.name).toBe('FolderOpen');
+  expect(icon.data).toEqual({ name: 'FolderOpen', set: 'solid' });
   expect([icon.w, icon.h, icon.fill]).toEqual([96, 96, '#000000']);
   await expect(page.getByText('Pasted 1 object from another whiteboard.')).toBeVisible();
   await expect(item(page, icon.id).locator('svg path').first()).toBeAttached();
